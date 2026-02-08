@@ -1,186 +1,95 @@
 import os
-
 import re
-
 import time
-
 import subprocess
-
 from telegram import Update
-
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
+# bot token
+BOT_TOKEN = "!!!"
 
-# --------------------------
-
-# MASUKKAN TOKEN BOT DI SINI
-
-# --------------------------
-
-BOT_TOKEN = "8259462768:AAEoz4v87wTOGO68R1crGJWn4rdeNR6qwr8"
-
-
-# regex untuk menangkap link trycloudflare
-
+# regex for cloudflare URL
 URL_REGEX = re.compile(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
-
 
 tunnel_process = None
 
-
 # --------------------------
-
-# Command /expose
-
+# /expose command
 # --------------------------
-
 async def expose(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     global tunnel_process
-
 
     if tunnel_process and tunnel_process.poll() is None:
-
-        await update.message.reply_text("Tunnel sudah aktif ⚠️")
-
+        await update.message.reply_text("Tunnel already running ⚠️")
         return
 
-
-    await update.message.reply_text("Menyalakan tunnel Cloudflare... ⏳")
-
+    await update.message.reply_text("Starting Cloudflare tunnel... ⏳")
 
     cmd = [
-
         "cloudflared", "tunnel",
-
         "--url", "https://host.containers.internal:9090",
-
         "--no-tls-verify"
-
     ]
 
-
     tunnel_process = subprocess.Popen(
-
         cmd,
-
         stdout=subprocess.PIPE,
-
         stderr=subprocess.STDOUT,
-
         text=True
-
     )
-
 
     start_time = time.time()
-
-    timeout = 20  # detik
-
+    timeout = 20  # seconds
 
     for line in tunnel_process.stdout:
-
         match = URL_REGEX.search(line)
-
         if match:
-
             tunnel_url = match.group(0)
-
-            await update.message.reply_text(
-
-                f"Expose aktif 🚀\n{tunnel_url}"
-
-            )
-
+            await update.message.reply_text(f"Tunnel active 🚀\n{tunnel_url}")
             return
-
 
         if time.time() - start_time > timeout:
-
-            await update.message.reply_text(
-
-                "Gagal mendapatkan link Cloudflare ⏱️"
-
-            )
-
+            await update.message.reply_text("Failed to get Cloudflare URL ⏱️")
             tunnel_process.terminate()
-
             tunnel_process = None
-
             return
 
-
 # --------------------------
-
-# Command /down
-
+# /down command
 # --------------------------
-
 async def down(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     global tunnel_process
 
-
     if not tunnel_process or tunnel_process.poll() is not None:
-
-        await update.message.reply_text("Tidak ada tunnel yang aktif.")
-
+        await update.message.reply_text("No active tunnel.")
         tunnel_process = None
-
         return
 
-
     tunnel_process.terminate()
-
     tunnel_process = None
-
-    await update.message.reply_text("Tunnel dimatikan ❌")
-
+    await update.message.reply_text("Tunnel stopped ❌")
 
 # --------------------------
-
-# Command /start
-
+# /start command
 # --------------------------
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     await update.message.reply_text(
-
-        "Bot Exposer siap 🤖\n\n"
-
-        "/expose  → buka akses cockpit\n"
-
-        "/down    → tutup akses"
-
+        "Bot ready 🤖\n\n"
+        "/expose → open cockpit\n"
+        "/down → close tunnel"
     )
 
-
 # --------------------------
-
-# MAIN
-
+# main
 # --------------------------
-
 def main():
-
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-
     app.add_handler(CommandHandler("start", start))
-
     app.add_handler(CommandHandler("expose", expose))
-
     app.add_handler(CommandHandler("down", down))
 
-
-    print("Bot berjalan...", flush=True)
-
+    print("Bot running...", flush=True)
     app.run_polling()
 
-
-
 if __name__ == "__main__":
-
     main()
-
